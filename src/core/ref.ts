@@ -6,12 +6,11 @@ export interface PrRef {
   number: number;
 }
 
+// A reference that may still need its repo resolved (the `org/123` form).
+export type PrInput = PrRef | { owner: string; number: number; repo?: undefined };
+
 export function prKey(ref: PrRef): string {
   return `${ref.owner}/${ref.repo}#${ref.number}`;
-}
-
-export function formatRef(ref: PrRef): string {
-  return prKey(ref);
 }
 
 export function prUrl(ref: PrRef): string {
@@ -19,39 +18,27 @@ export function prUrl(ref: PrRef): string {
 }
 
 const urlPattern = /^https?:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/pull\/(\d+)(?:[/?#].*)?$/;
-const shorthandPattern = /^([^/\s#]+)\/([^/\s#]+)#(\d+)$/;
-const repoPattern = /^([^/\s]+)\/([^/\s]+)$/;
+const repoNumberPattern = /^([^/\s#]+)\/([^/\s#]+)#(\d+)$/;
+const ownerNumberPattern = /^([^/\s#]+)\/(\d+)$/;
 
-// Parses a PR reference: full URL, "owner/repo#123", or a bare number.
-// A bare number needs a repo from --repo or the current directory; without one it fails
-// as ambiguous so agents get a structured error instead of a guess.
-export function parsePrRef(input: string, contextRepo?: string): PrRef {
+// Accepts a full PR URL, owner/repo#123, or org/123 (repo resolved later by
+// searching the user's open PRs in that org).
+export function parsePrInput(input: string): PrInput {
   const trimmed = input.trim();
 
   const url = trimmed.match(urlPattern);
   if (url) return { owner: url[1]!, repo: url[2]!, number: Number(url[3]!) };
 
-  const shorthand = trimmed.match(shorthandPattern);
-  if (shorthand) {
-    return { owner: shorthand[1]!, repo: shorthand[2]!, number: Number(shorthand[3]!) };
+  const repoNumber = trimmed.match(repoNumberPattern);
+  if (repoNumber) {
+    return { owner: repoNumber[1]!, repo: repoNumber[2]!, number: Number(repoNumber[3]!) };
   }
 
-  if (/^#?\d+$/.test(trimmed)) {
-    const number = Number(trimmed.replace("#", ""));
-    if (!contextRepo) {
-      fail(
-        `PR number "${input}" is ambiguous: not inside a GitHub repository and no --repo given. ` +
-          `Use --repo owner/name or a full PR URL.`,
-        "usage",
-      );
-    }
-    const repo = contextRepo.match(repoPattern);
-    if (!repo) fail(`Invalid repository "${contextRepo}"; expected owner/name.`, "usage");
-    return { owner: repo[1]!, repo: repo[2]!, number };
-  }
+  const ownerNumber = trimmed.match(ownerNumberPattern);
+  if (ownerNumber) return { owner: ownerNumber[1]!, number: Number(ownerNumber[2]!) };
 
   fail(
-    `Cannot parse PR reference "${input}". Use a URL, owner/repo#123, or a number with --repo.`,
+    `Cannot parse PR reference "${input}". Use org/123, owner/repo#123, or a full PR URL.`,
     "usage",
   );
 }

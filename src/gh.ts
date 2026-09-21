@@ -4,7 +4,11 @@ import { fail, PrbbError } from "./util/errors.ts";
 import type { PrRef } from "./core/ref.ts";
 import type { GhPrJson } from "./core/model.ts";
 import { prStatusJsonFields } from "./core/model.ts";
-import type { MergeMethods } from "./core/plan.ts";
+export interface MergeMethods {
+  rebase: boolean;
+  squash: boolean;
+  merge: boolean;
+}
 
 // Small typed adapter around the installed `gh` CLI. All GitHub reads and writes
 // go through here so tests can inject a fake runner and never touch real PRs.
@@ -90,16 +94,19 @@ export class GhClient {
     ]);
   }
 
-  // Merge-commit update from base; never a force push to the PR branch.
-  async updateBranch(ref: PrRef): Promise<void> {
+  // Updates the PR branch from base via GitHub's API; with rebase it replays the
+  // branch's commits on the new base server-side. Never a local force push.
+  async updateBranch(ref: PrRef, options: { rebase?: boolean } = {}): Promise<void> {
     try {
-      await this.gh([
+      const args = [
         "pr",
         "update-branch",
         String(ref.number),
         "--repo",
         `${ref.owner}/${ref.repo}`,
-      ]);
+      ];
+      if (options.rebase) args.push("--rebase");
+      await this.gh(args);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new PrbbError(
@@ -107,31 +114,5 @@ export class GhClient {
         "branchUpdateFailed",
       );
     }
-  }
-
-  // Repository name with owner + default branch of the current directory's repo, if any.
-  async currentRepo(): Promise<string | null> {
-    const result = await this.run("gh", [
-      "repo",
-      "view",
-      "--json",
-      "nameWithOwner",
-      "--jq",
-      ".nameWithOwner",
-    ]);
-    if (result.code !== 0) return null;
-    const name = result.stdout.trim();
-    return name.length > 0 ? name : null;
-  }
-
-  async openInBrowser(ref: PrRef): Promise<void> {
-    await this.gh([
-      "pr",
-      "view",
-      String(ref.number),
-      "--repo",
-      `${ref.owner}/${ref.repo}`,
-      "--web",
-    ]);
   }
 }

@@ -1,7 +1,8 @@
 # prbb
 
-Babysits your GitHub pull requests. Watches checks, reviews, and mergeability; keeps ready PRs
-moving by updating branches and enabling auto-merge; hands merge conflicts to a Herdr agent.
+Babysits one pull request until it merges. Enables auto-merge (rebase), rebases the branch via
+GitHub whenever it falls behind, and exits with a clear error if a merge conflict or anything else
+blocks the merge.
 
 All GitHub access goes through the installed `gh` CLI and its login. prbb never stores tokens.
 
@@ -14,120 +15,62 @@ bun link          # makes `prbb` available on PATH
 
 Requires [Bun](https://bun.sh) and an authenticated [`gh`](https://cli.github.com) (`gh auth login`).
 
-## Interactive use
+## Use
 
 ```sh
-prbb <org>            # live TUI: your open non-draft PRs in that organization
-prbb --all            # every organization
-prbb <org> --drafts   # include drafts (shown, never auto-merged)
-prbb <org> --watch-only  # watch and report; never writes to GitHub
-prbb <org> --interval 60 # poll every 60s (default 30s, backs off on errors)
+prbb new-quest-ai/1691                        # org + PR number (repo found automatically)
+prbb new-quest-ai/quest#1691                  # explicit repo
+prbb https://github.com/acme/widgets/pull/42  # full URL
+prbb acme/1691 --interval 60                  # poll every 60s (default 30s)
 ```
 
-An organization (or user) is required unless you pass `--all`. The filter also applies to
-manually added PRs, so the screen stays org-scoped.
+The `org/number` form finds the PR among your open PRs in that org; if the number matches PRs in
+two repos, prbb asks for the explicit form.
 
-One row per PR: repo#number, title, checks, review, merge state, auto-merge state, last refresh.
-The activity area below shows polling, actions, failures, and merges as they happen.
+While running, prbb prints one timestamped line per change:
 
-### Keys
-
-| Key                | Action                                                        |
-| ------------------ | ------------------------------------------------------------- |
-| `↑`/`↓` or `j`/`k` | select PR                                                     |
-| `r`                | refresh now                                                   |
-| `o`                | open selected PR in browser                                   |
-| `c`                | start a Herdr conflict-resolution agent (conflicting PR only) |
-| `?` or `h`         | toggle help                                                   |
-| `q` / Ctrl-C       | quit                                                          |
-
-Add and remove tracked PRs from the shell (the TUI picks changes up on the next poll):
-
-```sh
-prbb add https://github.com/acme/widgets/pull/42
-prbb add acme/widgets#42
-prbb add 42 --repo acme/widgets     # or run inside a checkout of the repo
-prbb remove acme/widgets#42         # stops tracking; also hides it from discovery
+```
+[10:32:01] babysitting new-quest-ai/quest#1691
+[10:32:02] checks:pending(3 running)  review:approved  merge:blocked  auto-merge:off
+[10:32:02] enabled auto-merge (rebase)
+[10:41:12] branch is behind main; rebasing via gh
+[10:55:40] new-quest-ai/quest#1691 merged 🎉
 ```
 
-A bare number outside a GitHub repo without `--repo` is an error (exit code 2).
+## What it does — and doesn't
 
-## Agent / machine use
+- Enables auto-merge using the repo's rebase method (falls back to squash, then merge commit).
+- When the branch is behind its base, runs `gh pr update-branch --rebase` (GitHub's server-side
+  rebase; never a local force push). Repeats at most every 2 minutes so GitHub can recalculate.
+- Never bypasses protections, never uses admin merge, never merges drafts.
 
-Machine output goes to stdout; diagnostics go to stderr. No ANSI, no prompts.
+It exits (with the codes below) instead of acting when the PR has a merge conflict, failing
+checks, a "changes requested" review, is a draft, or was closed. Fix the problem and rerun.
+Transient poll errors don't exit; prbb backs off and retries.
 
-```sh
-prbb status <org> --json  # one snapshot: every PR's status plus the planned next action
-prbb watch <org>          # JSONL: one event per line (pr-updated, action, conflict, merged, …)
-prbb config-path      # print config file location
-```
+## Exit codes
 
-Structured errors print one JSON line to stderr: `{"error":{"code":"…","message":"…"}}`.
+| Code | Meaning                                                                        |
+| ---- | ------------------------------------------------------------------------------ |
+| 0    | PR merged                                                                      |
+| 1    | generic failure                                                                |
+| 2    | bad or ambiguous PR reference                                                  |
+| 3    | `gh` authentication failure                                                    |
+| 4    | merge conflict                                                                 |
+| 5    | branch update failed                                                           |
+| 6    | blocked (failing checks, changes requested, draft, or no allowed merge method) |
+| 7    | PR closed without merging                                                      |
 
-### Exit codes
-
-| Code | Meaning                                            |
-| ---- | -------------------------------------------------- |
-| 0    | success                                            |
-| 1    | generic failure                                    |
-| 2    | usage error (for example ambiguous bare PR number) |
-| 3    | `gh` authentication failure                        |
-| 4    | merge conflict that needs Herdr                    |
-| 5    | branch update failed                               |
-| 6    | blocked by checks or reviews                       |
-| 7    | PR already merged or closed                        |
-
-## What prbb does on its own
-
-Unless `--watch-only` is set, prbb automatically:
-
-- **Enables auto-merge** on open, non-draft PRs whose checks aren't failing and that have no
-  "changes requested" review. It prefers the repository's rebase method, falling back to squash,
-  then merge commit.
-- **Updates branches** that are behind their base, using GitHub's update-branch (a merge from
-  base — never a force push).
-
-Every action is announced in the activity log / JSONL stream. Repeated actions on the same PR are
-rate-limited (5 min cooldown) so GitHub has time to recalculate checks and mergeability.
-
-prbb never: bypasses branch protections, uses admin merge, merges drafts, force-pushes, or
-auto-merges a stacked PR. When one tracked PR's base is another tracked PR's head branch, prbb
-treats it as a stack layer and reports the required merge order instead of acting.
-
-## Conflicts and Herdr
-
-When GitHub reports a conflict, the PR row shows `‼ CONFLICT` and the activity log prompts you to
-press `c`. Inside Herdr (`HERDR_ENV=1`), that creates or reuses a Worktrunk worktree for the PR
-branch, opens a Herdr workspace, and starts a Pi shipmate with a focused conflict-resolution task.
-An existing conflict workspace for the same PR is reused, never duplicated.
-
-Outside Herdr, prbb fails with exit code 4 and instructions to rerun inside Herdr. prbb never
-resolves conflicts itself.
-
-To find the local checkout for a repo, prbb tries `repoPaths["owner/repo"]` from the config, then
-`~/code/<repo>`.
-
-## Config
-
-Stored at `$XDG_CONFIG_HOME/prbb/config.json` (default `~/.config/prbb/config.json`; override with
-`PRBB_CONFIG_DIR`):
-
-```json
-{
-  "manualPrs": [{ "owner": "acme", "repo": "widgets", "number": 42 }],
-  "ignoredPrs": [],
-  "repoPaths": { "acme/widgets": "/Users/joel/code/widgets" }
-}
-```
+Errors print a single line to stderr; status lines go to stdout.
 
 ## Development
 
 ```sh
-bun test              # unit/integration tests (fake gh/wt/herdr; never touches real PRs)
+bun test              # all tests use a fake gh; nothing touches real PRs
 bun run check         # typecheck
 bun run fmt           # format
 ```
 
-Layout follows small typed adapters: [src/gh.ts](src/gh.ts) wraps `gh`, [src/core/](src/core/)
-holds pure parsing/status/planning logic, [src/engine.ts](src/engine.ts) runs the poll loop, and
-[src/tui/](src/tui/) renders it with Ink.
+[src/gh.ts](src/gh.ts) is a small typed adapter around `gh`; [src/core/](src/core/) holds pure
+parsing/status logic; [src/babysit.ts](src/babysit.ts) is the watch loop; [src/cli.ts](src/cli.ts)
+wires it up.

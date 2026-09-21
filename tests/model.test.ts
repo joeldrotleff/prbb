@@ -42,10 +42,9 @@ describe("mapPrStatus", () => {
     expect(pr.autoMergeMethod).toBe("REBASE");
   });
 
-  test("keeps ref and source", () => {
+  test("keeps ref", () => {
     const pr = mapPrStatus({ owner: "x", repo: "y", number: 9 }, ghPr(), "manual", "t");
     expect(pr.key).toBe("x/y#9");
-    expect(pr.source).toBe("manual");
     expect(pr.fetchedAt).toBe("t");
   });
 });

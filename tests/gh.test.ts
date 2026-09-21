@@ -29,6 +29,12 @@ describe("GhClient", () => {
     expect(calls[1]!.args).not.toContain("draft:false");
   });
 
+  test("updateBranch passes --rebase when asked", async () => {
+    const { run, calls } = fakeRunner([]);
+    await new GhClient(run).updateBranch({ owner: "a", repo: "b", number: 1 }, { rebase: true });
+    expect(calls[0]!.args).toContain("--rebase");
+  });
+
   test("updateBranch failures map to branchUpdateFailed", async () => {
     const { run } = fakeRunner([
       {
