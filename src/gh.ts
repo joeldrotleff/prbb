@@ -30,8 +30,8 @@ export class GhClient {
     return login;
   }
 
-  // Finds open PRs authored by the user across all repositories.
-  async searchAuthoredPrs(user: string, includeDrafts: boolean): Promise<PrRef[]> {
+  // Finds open PRs authored by the user, optionally limited to one owner/org.
+  async searchAuthoredPrs(user: string, includeDrafts: boolean, owner?: string): Promise<PrRef[]> {
     const args = [
       "search",
       "prs",
@@ -44,6 +44,7 @@ export class GhClient {
       "--json",
       "number,repository,isDraft",
     ];
+    if (owner) args.push("--owner", owner);
     if (!includeDrafts) args.push("--", "draft:false");
     const rows: Array<{ number: number; repository: { nameWithOwner: string } }> = JSON.parse(
       await this.gh(args),

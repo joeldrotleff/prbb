@@ -26,6 +26,8 @@ export type EngineEvent =
 export interface EngineOptions {
   includeDrafts: boolean;
   watchOnly: boolean;
+  // Limit tracking to this GitHub owner/organization. Absent means all owners.
+  owner?: string;
   backoff?: BackoffOptions;
   // Minimum time between write actions on the same PR.
   actionCooldownMs?: number;
@@ -118,7 +120,12 @@ export class Engine {
 
   private async trackedRefs(): Promise<Array<{ ref: PrRef; source: "discovered" | "manual" }>> {
     if (!this.user) this.user = await this.gh.currentUser();
-    const discovered = await this.gh.searchAuthoredPrs(this.user, this.options.includeDrafts);
+    const owner = this.options.owner;
+    const discovered = await this.gh.searchAuthoredPrs(
+      this.user,
+      this.options.includeDrafts,
+      owner,
+    );
     const ignored = new Set(this.config.ignoredPrs.map(prKey));
     const result = new Map<string, { ref: PrRef; source: "discovered" | "manual" }>();
     for (const ref of discovered) {
@@ -126,7 +133,9 @@ export class Engine {
       if (!ignored.has(key)) result.set(key, { ref, source: "discovered" });
     }
     // Manual PRs win over discovery so their source stays "manual".
+    // The owner filter applies to them too so the view stays org-scoped.
     for (const ref of this.config.manualPrs) {
+      if (owner && ref.owner.toLowerCase() !== owner.toLowerCase()) continue;
       result.set(prKey(ref), { ref, source: "manual" });
     }
     return [...result.values()];

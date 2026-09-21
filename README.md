@@ -17,11 +17,15 @@ Requires [Bun](https://bun.sh) and an authenticated [`gh`](https://cli.github.co
 ## Interactive use
 
 ```sh
-prbb                  # live TUI: all your open non-draft PRs across repos
-prbb --drafts         # include drafts (shown, never auto-merged)
-prbb --watch-only     # watch and report; never writes to GitHub
-prbb --interval 60    # poll every 60s (default 30s, backs off on errors)
+prbb <org>            # live TUI: your open non-draft PRs in that organization
+prbb --all            # every organization
+prbb <org> --drafts   # include drafts (shown, never auto-merged)
+prbb <org> --watch-only  # watch and report; never writes to GitHub
+prbb <org> --interval 60 # poll every 60s (default 30s, backs off on errors)
 ```
+
+An organization (or user) is required unless you pass `--all`. The filter also applies to
+manually added PRs, so the screen stays org-scoped.
 
 One row per PR: repo#number, title, checks, review, merge state, auto-merge state, last refresh.
 The activity area below shows polling, actions, failures, and merges as they happen.
@@ -53,8 +57,8 @@ A bare number outside a GitHub repo without `--repo` is an error (exit code 2).
 Machine output goes to stdout; diagnostics go to stderr. No ANSI, no prompts.
 
 ```sh
-prbb status --json    # one snapshot: every PR's status plus the planned next action
-prbb watch            # JSONL: one event object per line (pr-updated, action, conflict, merged, …)
+prbb status <org> --json  # one snapshot: every PR's status plus the planned next action
+prbb watch <org>          # JSONL: one event per line (pr-updated, action, conflict, merged, …)
 prbb config-path      # print config file location
 ```
 

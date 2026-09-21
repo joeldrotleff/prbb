@@ -6,21 +6,32 @@ import { Engine } from "./engine.ts";
 import { loadConfig, saveConfig, addManualPr, removePr, configPath } from "./config.ts";
 import { parsePrRef, prKey } from "./core/ref.ts";
 import { statusJson, eventJsonl } from "./output.ts";
-import { PrbbError, ExitCode } from "./util/errors.ts";
+import { PrbbError, ExitCode, fail } from "./util/errors.ts";
 import { App } from "./tui/App.tsx";
 
 interface CommonOptions {
   drafts?: boolean;
   watchOnly?: boolean;
   interval?: string;
+  all?: boolean;
 }
 
-function makeEngine(gh: GhClient, options: CommonOptions) {
+// Watching every org at once is usually noise, so an org is required unless --all.
+function resolveOwner(org: string | undefined, options: CommonOptions): string | undefined {
+  if (options.all) return undefined;
+  if (!org) {
+    fail("Missing organization. Pass one (e.g. `prbb new-quest-ai`) or use --all.", "usage");
+  }
+  return org;
+}
+
+function makeEngine(gh: GhClient, options: CommonOptions, owner: string | undefined) {
   const config = loadConfig();
   const intervalMs = options.interval ? Number(options.interval) * 1000 : 30_000;
   const engine = new Engine(gh, config, {
     includeDrafts: options.drafts ?? false,
     watchOnly: options.watchOnly ?? false,
+    owner,
     backoff: { baseMs: intervalMs, maxMs: Math.max(intervalMs * 10, 300_000) },
   });
   return { engine, config };
@@ -41,14 +52,16 @@ export async function runCli(argv: string[]): Promise<void> {
     .name("prbb")
     .description("Babysits your GitHub pull requests.")
     .version("0.1.0")
+    .option("--all", "track PRs across all organizations")
     .option("--drafts", "include draft PRs")
     .option("--watch-only", "watch and report, never write (no auto-merge or branch updates)")
     .option("--interval <seconds>", "poll interval in seconds", "30");
 
   // Default command: interactive TUI.
-  program.action(async () => {
+  program.argument("[org]", "GitHub organization/owner to watch (required unless --all)");
+  program.action(async (org: string | undefined) => {
     const options = program.opts<CommonOptions>();
-    const { engine, config } = makeEngine(gh, options);
+    const { engine, config } = makeEngine(gh, options, resolveOwner(org, options));
     const { waitUntilExit } = render(
       React.createElement(App, { engine, gh, config, watchOnly: options.watchOnly ?? false }),
       { exitOnCtrlC: false },
@@ -60,11 +73,16 @@ export async function runCli(argv: string[]): Promise<void> {
   program
     .command("status")
     .description("One snapshot of all tracked PRs (use --json for machine output)")
+    .argument("[org]", "GitHub organization/owner (required unless --all)")
     .option("--json", "print JSON to stdout")
-    .action(async (cmdOptions: { json?: boolean }) => {
+    .action(async (org: string | undefined, cmdOptions: { json?: boolean }) => {
       const options = program.opts<CommonOptions>();
       // Snapshot never writes to GitHub, whatever the global flags say.
-      const { engine } = makeEngine(gh, { ...options, watchOnly: true });
+      const { engine } = makeEngine(
+        gh,
+        { ...options, watchOnly: true },
+        resolveOwner(org, options),
+      );
       await engine.pollOnce();
       const prs = [...engine.prs.values()];
       const plans = await engine.planAll();
@@ -86,9 +104,10 @@ export async function runCli(argv: string[]): Promise<void> {
   program
     .command("watch")
     .description("Poll continuously and emit one JSON event per line (JSONL) to stdout")
-    .action(async () => {
+    .argument("[org]", "GitHub organization/owner (required unless --all)")
+    .action(async (org: string | undefined) => {
       const options = program.opts<CommonOptions>();
-      const { engine } = makeEngine(gh, options);
+      const { engine } = makeEngine(gh, options, resolveOwner(org, options));
       engine.onEvent((event) => process.stdout.write(eventJsonl(event) + "\n"));
       const stop = () => {
         engine.stop();

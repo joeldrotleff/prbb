@@ -128,6 +128,26 @@ describe("Engine.pollOnce", () => {
     expect(calls.filter((c) => c.args.includes("view") && c.args.includes("pr")).length).toBe(1);
   });
 
+  test("owner filter scopes discovery and manual PRs", async () => {
+    const { run, calls } = fakeRunner(ghScript(ghPr(), [{ number: 1, repo: "acme/widgets" }]));
+    const config: PrbbConfig = {
+      manualPrs: [{ owner: "other-org", repo: "tool", number: 3 }],
+      ignoredPrs: [],
+      repoPaths: {},
+    };
+    const engine = new Engine(new GhClient(run), config, {
+      includeDrafts: false,
+      watchOnly: true,
+      owner: "acme",
+    });
+    await engine.pollOnce();
+    const search = calls.find((c) => c.args.includes("search"));
+    expect(search?.args).toContain("--owner");
+    expect(search?.args).toContain("acme");
+    expect(engine.prs.has("other-org/tool#3")).toBe(false);
+    expect(engine.prs.has("acme/widgets#1")).toBe(true);
+  });
+
   test("ignored PRs are excluded from discovery", async () => {
     const { run } = fakeRunner(ghScript(ghPr(), [{ number: 1, repo: "acme/widgets" }]));
     const config: PrbbConfig = {
