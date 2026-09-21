@@ -1,4 +1,4 @@
-# prbb
+# prbb 👶🍼
 
 Babysits one pull request until it merges. Enables auto-merge (rebase), rebases the branch via
 GitHub whenever it falls behind, and exits with a clear error if a merge conflict or anything else
