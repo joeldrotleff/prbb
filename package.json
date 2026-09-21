@@ -1,0 +1,26 @@
+{
+  "name": "prbb",
+  "version": "0.1.0",
+  "description": "Babysits your GitHub pull requests: watches checks, updates branches, enables auto-merge, and hands conflicts to a Herdr agent.",
+  "type": "module",
+  "bin": {
+    "prbb": "src/main.ts"
+  },
+  "scripts": {
+    "check": "bunx tsc --noEmit",
+    "test": "bun test",
+    "fmt": "bunx prettier --write 'src/**/*.{ts,tsx}' 'tests/**/*.ts' '*.md'",
+    "fmt:check": "bunx prettier --check 'src/**/*.{ts,tsx}' 'tests/**/*.ts' '*.md'"
+  },
+  "dependencies": {
+    "commander": "^14.0.1",
+    "ink": "^6.3.1",
+    "react": "^19.1.1"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.22",
+    "@types/react": "^19.1.13",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.2"
+  }
+}
