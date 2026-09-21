@@ -53,7 +53,7 @@ export async function resolveRef(input: PrInput, gh: GhClient): Promise<PrRef> {
 
 function summary(pr: PrStatus): string {
   return (
-    `checks:${pr.checks}` +
+    `🩺 checks:${pr.checks}` +
     (pr.checksFailed > 0 ? `(${pr.checksFailed} failing)` : "") +
     (pr.checksPending > 0 ? `(${pr.checksPending} running)` : "") +
     `  review:${pr.reviewDecision.toLowerCase()}  merge:${pr.mergeState.toLowerCase()}` +
@@ -70,7 +70,7 @@ export async function babysit(input: PrInput, deps: BabysitDeps): Promise<void> 
   const updateCooldownMs = deps.updateCooldownMs ?? 120_000;
 
   const ref = await resolveRef(input, gh);
-  log(`babysitting ${prKey(ref)}`);
+  log(`👶 babysitting ${prKey(ref)}`);
 
   let lastSummary = "";
   let lastUpdateAt = -Infinity;
@@ -83,13 +83,13 @@ export async function babysit(input: PrInput, deps: BabysitDeps): Promise<void> 
       failures = 0;
     } catch (error) {
       failures += 1;
-      log(`poll failed (${error instanceof Error ? error.message.split("\n")[0] : error})`);
+      log(`😭 poll failed (${error instanceof Error ? error.message.split("\n")[0] : error})`);
       await sleep(nextPollDelay(failures, deps.backoff));
       continue;
     }
 
     if (pr.state === "MERGED") {
-      log(`${prKey(ref)} merged 🎉`);
+      log(`🎉 ${prKey(ref)} merged — baby's all grown up 🧸`);
       return;
     }
     if (pr.state === "CLOSED") fail(`${prKey(ref)} was closed without merging.`, "prClosed");
@@ -118,11 +118,11 @@ export async function babysit(input: PrInput, deps: BabysitDeps): Promise<void> 
       const method = pickMergeMethod(await gh.repoMergeMethods(ref.owner, ref.repo));
       if (!method) fail(`${prKey(ref)}: repository allows no merge method.`, "blocked");
       await gh.enableAutoMerge(ref, method);
-      log(`enabled auto-merge (${method})`);
+      log(`🍼 enabled auto-merge (${method})`);
     }
 
     if (pr.mergeState === "BEHIND" && now() - lastUpdateAt >= updateCooldownMs) {
-      log(`branch is behind ${pr.baseRefName}; rebasing via gh`);
+      log(`🚼 branch is behind ${pr.baseRefName}; rebasing via gh`);
       await gh.updateBranch(ref, { rebase: true });
       lastUpdateAt = now();
     }

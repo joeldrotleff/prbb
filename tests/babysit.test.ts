@@ -192,6 +192,6 @@ describe("babysit", () => {
       { state: "MERGED" },
     ]);
     await babysit(ref, d);
-    expect(log.filter((l) => l.startsWith("checks:"))).toHaveLength(1);
+    expect(log.filter((l) => l.includes("checks:"))).toHaveLength(1);
   });
 });
