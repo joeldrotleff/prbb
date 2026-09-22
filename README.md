@@ -43,6 +43,7 @@ While running, prbb prints one timestamped line per change:
 - When the branch is behind its base, runs `gh pr update-branch --rebase` (GitHub's server-side
   rebase; never a local force push). Repeats at most every 2 minutes so GitHub can recalculate.
 - Never bypasses protections, never uses admin merge, never merges drafts.
+- Warns (⚠️/💬) when the PR still needs a review approval or has unresolved conversations.
 
 It exits (with the codes below) instead of acting when the PR has a merge conflict, failing
 checks, a "changes requested" review, is a draft, or was closed. Fix the problem and rerun.
