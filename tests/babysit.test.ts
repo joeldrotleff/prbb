@@ -185,6 +185,26 @@ describe("babysit", () => {
     expect(log.some((l) => l.includes("merged"))).toBe(true);
   });
 
+  test("a check starting to run prints a new status line with its name", async () => {
+    const armed = { autoMergeRequest: { mergeMethod: "REBASE" } };
+    const { deps: d, log } = deps([
+      { ...armed, statusCheckRollup: [] },
+      { ...armed, statusCheckRollup: [{ name: "build", status: "IN_PROGRESS" }] },
+      { state: "MERGED" },
+    ]);
+    await babysit(ref, d);
+    const checkLines = log.filter((l) => l.includes("checks:"));
+    expect(checkLines).toHaveLength(2);
+    expect(checkLines[1]).toContain("running: build");
+  });
+
+  test("failing checks error names the checks", async () => {
+    const { deps: d } = deps([
+      { statusCheckRollup: [{ name: "test", status: "COMPLETED", conclusion: "FAILURE" }] },
+    ]);
+    await expect(babysit(ref, d)).rejects.toThrow(/failing check\(s\): test/);
+  });
+
   test("status line is logged only when it changes", async () => {
     const { deps: d, log } = deps([
       { autoMergeRequest: { mergeMethod: "REBASE" } },

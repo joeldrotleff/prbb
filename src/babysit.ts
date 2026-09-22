@@ -51,11 +51,17 @@ export async function resolveRef(input: PrInput, gh: GhClient): Promise<PrRef> {
   );
 }
 
+// Show at most a few check names so the line stays one line.
+function nameList(names: string[], max = 4): string {
+  const shown = names.slice(0, max).join(", ");
+  return names.length > max ? `${shown}, +${names.length - max} more` : shown;
+}
+
 function summary(pr: PrStatus): string {
   return (
     `🩺 checks:${pr.checks}` +
-    (pr.checksFailed > 0 ? `(${pr.checksFailed} failing)` : "") +
-    (pr.checksPending > 0 ? `(${pr.checksPending} running)` : "") +
+    (pr.checksFailed > 0 ? ` (failing: ${nameList(pr.failedChecks)})` : "") +
+    (pr.checksPending > 0 ? ` (running: ${nameList(pr.runningChecks)})` : "") +
     `  review:${pr.reviewDecision.toLowerCase()}  merge:${pr.mergeState.toLowerCase()}` +
     `  auto-merge:${pr.autoMergeEnabled ? "on" : "off"}`
   );
@@ -102,7 +108,10 @@ export async function babysit(input: PrInput, deps: BabysitDeps): Promise<void> 
       );
     }
     if (pr.checks === "failing") {
-      fail(`${prKey(ref)} has ${pr.checksFailed} failing check(s). ${pr.url}`, "blocked");
+      fail(
+        `${prKey(ref)} has failing check(s): ${nameList(pr.failedChecks, 10)}. ${pr.url}`,
+        "blocked",
+      );
     }
     if (pr.reviewDecision === "CHANGES_REQUESTED") {
       fail(`${prKey(ref)} has changes requested; address the review first. ${pr.url}`, "blocked");

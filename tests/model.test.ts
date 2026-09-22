@@ -21,6 +21,18 @@ describe("mapPrStatus", () => {
     expect(pr.checksPending).toBe(1);
   });
 
+  test("collects names of running and failing checks", () => {
+    const pr = prStatus({
+      statusCheckRollup: [
+        { name: "build", status: "IN_PROGRESS" },
+        { context: "ci/lint", state: "PENDING" },
+        { name: "test", status: "COMPLETED", conclusion: "FAILURE" },
+      ],
+    });
+    expect(pr.runningChecks).toEqual(["build", "ci/lint"]);
+    expect(pr.failedChecks).toEqual(["test"]);
+  });
+
   test("legacy StatusContext state is read when conclusion is absent", () => {
     const pr = prStatus({ statusCheckRollup: [{ __typename: "StatusContext", state: "ERROR" }] });
     expect(pr.checks).toBe("failing");
