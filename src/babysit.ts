@@ -84,6 +84,7 @@ export async function babysit(input: PrInput, deps: BabysitDeps): Promise<void> 
   let failures = 0;
   let knownApprovers: Set<string> | null = null;
   let lastHeadSha: string | null = null;
+  let lastUnresolved: number | null = null;
 
   while (true) {
     let pr: PrStatus;
@@ -142,6 +143,15 @@ export async function babysit(input: PrInput, deps: BabysitDeps): Promise<void> 
       warnings.push("⚠️ needs review approval before it can merge");
     }
     const unresolved = await gh.unresolvedThreads(ref).catch(() => 0);
+    if (lastUnresolved !== null && unresolved < lastUnresolved) {
+      const resolved = lastUnresolved - unresolved;
+      log(
+        unresolved === 0
+          ? "😴 all conversations resolved"
+          : `👌 ${resolved} conversation${resolved === 1 ? "" : "s"} resolved (${unresolved} left)`,
+      );
+    }
+    lastUnresolved = unresolved;
     if (unresolved > 0) {
       warnings.push(`💬 ${unresolved} unresolved conversation${unresolved === 1 ? "" : "s"}`);
     }

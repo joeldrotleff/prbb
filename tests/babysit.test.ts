@@ -252,6 +252,47 @@ describe("babysit", () => {
     expect(log.filter((l) => l.includes("new commits"))).toHaveLength(1);
   });
 
+  test("logs when conversations get resolved", async () => {
+    const armed = { autoMergeRequest: { mergeMethod: "REBASE" } };
+    let graphqlCall = 0;
+    const threadCounts = ["2", "1", "0"];
+    const { run } = fakeRunner([
+      {
+        match: "api repos/",
+        result: { stdout: JSON.stringify({ rebase: true, squash: true, merge: true }) },
+      },
+    ]);
+    let poll = 0;
+    const states = [armed, armed, armed, { state: "MERGED" as const }];
+    const scripted: typeof run = async (command, args, options) => {
+      if (args.includes("view")) {
+        return {
+          code: 0,
+          stdout: JSON.stringify(ghPr(states[Math.min(poll++, states.length - 1)])),
+          stderr: "",
+        };
+      }
+      if (args.includes("graphql")) {
+        return {
+          code: 0,
+          stdout: threadCounts[Math.min(graphqlCall++, threadCounts.length - 1)]!,
+          stderr: "",
+        };
+      }
+      return run(command, args, options);
+    };
+    const log: string[] = [];
+    await babysit(ref, {
+      gh: new GhClient(scripted),
+      log: (line) => log.push(line),
+      sleep: async () => {},
+    });
+    expect(log.filter((l) => l.includes("👌") || l.includes("😴"))).toEqual([
+      "👌 1 conversation resolved (1 left)",
+      "😴 all conversations resolved",
+    ]);
+  });
+
   test("status line is logged only when it changes", async () => {
     const { deps: d, log } = deps([
       { autoMergeRequest: { mergeMethod: "REBASE" } },
