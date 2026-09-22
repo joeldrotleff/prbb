@@ -79,6 +79,7 @@ export async function babysit(input: PrInput, deps: BabysitDeps): Promise<void> 
   log(`👶 babysitting ${prKey(ref)}`);
 
   let lastSummary = "";
+  let lastWarnings = "";
   let lastUpdateAt = -Infinity;
   let failures = 0;
 
@@ -121,6 +122,21 @@ export async function babysit(input: PrInput, deps: BabysitDeps): Promise<void> 
     if (line !== lastSummary) {
       log(line);
       lastSummary = line;
+    }
+
+    // Warn (once per change) about things auto-merge is waiting on that need a human.
+    const warnings: string[] = [];
+    if (pr.reviewDecision === "REVIEW_REQUIRED") {
+      warnings.push("⚠️ needs review approval before it can merge");
+    }
+    const unresolved = await gh.unresolvedThreads(ref).catch(() => 0);
+    if (unresolved > 0) {
+      warnings.push(`💬 ${unresolved} unresolved conversation${unresolved === 1 ? "" : "s"}`);
+    }
+    const warningLine = warnings.join("\n");
+    if (warningLine !== lastWarnings) {
+      for (const warning of warnings) log(warning);
+      lastWarnings = warningLine;
     }
 
     if (!pr.autoMergeEnabled) {

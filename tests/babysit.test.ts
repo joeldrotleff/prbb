@@ -205,6 +205,29 @@ describe("babysit", () => {
     await expect(babysit(ref, d)).rejects.toThrow(/failing check\(s\): test/);
   });
 
+  test("warns once about needed approval and unresolved conversations", async () => {
+    const needsReview = {
+      reviewDecision: "REVIEW_REQUIRED" as const,
+      autoMergeRequest: { mergeMethod: "REBASE" },
+    };
+    const { deps: d, log } = deps(
+      [needsReview, needsReview, { state: "MERGED" }],
+      [{ match: "graphql", result: { stdout: "2\n" } }],
+    );
+    await babysit(ref, d);
+    expect(log.filter((l) => l.includes("needs review approval"))).toHaveLength(1);
+    expect(log.filter((l) => l.includes("2 unresolved conversations"))).toHaveLength(1);
+  });
+
+  test("no warnings when approved with no unresolved threads", async () => {
+    const { deps: d, log } = deps(
+      [{ autoMergeRequest: { mergeMethod: "REBASE" } }, { state: "MERGED" }],
+      [{ match: "graphql", result: { stdout: "0\n" } }],
+    );
+    await babysit(ref, d);
+    expect(log.some((l) => l.includes("⚠️") || l.includes("💬"))).toBe(false);
+  });
+
   test("status line is logged only when it changes", async () => {
     const { deps: d, log } = deps([
       { autoMergeRequest: { mergeMethod: "REBASE" } },

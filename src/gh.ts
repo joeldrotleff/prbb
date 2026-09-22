@@ -72,6 +72,29 @@ export class GhClient {
     return JSON.parse(out);
   }
 
+  // Count of unresolved review threads; not available through `gh pr view`.
+  async unresolvedThreads(ref: PrRef): Promise<number> {
+    const query =
+      "query($owner:String!,$repo:String!,$number:Int!){" +
+      "repository(owner:$owner,name:$repo){pullRequest(number:$number){" +
+      "reviewThreads(first:100){nodes{isResolved}}}}}";
+    const out = await this.gh([
+      "api",
+      "graphql",
+      "-f",
+      `query=${query}`,
+      "-F",
+      `owner=${ref.owner}`,
+      "-F",
+      `repo=${ref.repo}`,
+      "-F",
+      `number=${ref.number}`,
+      "--jq",
+      "[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved | not)] | length",
+    ]);
+    return Number(out.trim());
+  }
+
   async repoMergeMethods(owner: string, repo: string): Promise<MergeMethods> {
     const out = await this.gh([
       "api",

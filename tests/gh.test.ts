@@ -56,6 +56,13 @@ describe("GhClient", () => {
     expect(calls[0]!.args).toEqual(["pr", "merge", "7", "--repo", "a/b", "--auto", "--rebase"]);
   });
 
+  test("unresolvedThreads queries GraphQL and parses the count", async () => {
+    const { run, calls } = fakeRunner([{ match: "graphql", result: { stdout: "3\n" } }]);
+    const count = await new GhClient(run).unresolvedThreads({ owner: "a", repo: "b", number: 7 });
+    expect(count).toBe(3);
+    expect(calls[0]!.args.join(" ")).toContain("reviewThreads");
+  });
+
   test("viewPr parses gh JSON", async () => {
     const { run } = fakeRunner([{ match: "pr view", result: { stdout: JSON.stringify(ghPr()) } }]);
     const pr = await new GhClient(run).viewPr({ owner: "acme", repo: "widgets", number: 1 });
