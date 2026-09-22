@@ -15,6 +15,8 @@ export interface GhPrJson {
   autoMergeRequest: { enabledAt?: string; mergeMethod?: string } | null;
   baseRefName: string;
   headRefName: string;
+  headRefOid: string;
+  latestReviews: Array<{ author: { login: string }; state: string }> | null;
   statusCheckRollup: Array<{
     __typename?: string;
     name?: string; // CheckRun
@@ -36,6 +38,8 @@ export interface PrStatus {
   isDraft: boolean;
   baseRefName: string;
   headRefName: string;
+  headSha: string;
+  approvedBy: string[];
   checks: ChecksState;
   checksTotal: number;
   checksFailed: number;
@@ -52,7 +56,7 @@ export interface PrStatus {
 }
 
 export const prStatusJsonFields =
-  "number,title,url,state,isDraft,mergeable,mergeStateStatus,reviewDecision,autoMergeRequest,baseRefName,headRefName,statusCheckRollup";
+  "number,title,url,state,isDraft,mergeable,mergeStateStatus,reviewDecision,autoMergeRequest,baseRefName,headRefName,headRefOid,latestReviews,statusCheckRollup";
 
 function checkName(check: NonNullable<GhPrJson["statusCheckRollup"]>[number]): string {
   return check.name ?? check.context ?? "unnamed check";
@@ -106,6 +110,10 @@ export function mapPrStatus(
     isDraft: raw.isDraft,
     baseRefName: raw.baseRefName,
     headRefName: raw.headRefName,
+    headSha: raw.headRefOid,
+    approvedBy: (raw.latestReviews ?? [])
+      .filter((review) => review.state === "APPROVED")
+      .map((review) => review.author.login),
     checks,
     checksTotal: total,
     checksFailed: failed,

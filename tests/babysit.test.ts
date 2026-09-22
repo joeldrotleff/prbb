@@ -228,6 +228,30 @@ describe("babysit", () => {
     expect(log.some((l) => l.includes("⚠️") || l.includes("💬"))).toBe(false);
   });
 
+  test("logs new approvals by name but not pre-existing ones", async () => {
+    const armed = { autoMergeRequest: { mergeMethod: "REBASE" } };
+    const alice = { author: { login: "alice" }, state: "APPROVED" };
+    const bob = { author: { login: "bob" }, state: "APPROVED" };
+    const { deps: d, log } = deps([
+      { ...armed, latestReviews: [alice] },
+      { ...armed, latestReviews: [alice, bob] },
+      { state: "MERGED" },
+    ]);
+    await babysit(ref, d);
+    expect(log.filter((l) => l.includes("✅"))).toEqual(["✅ bob approved"]);
+  });
+
+  test("logs when new commits are pushed to the branch", async () => {
+    const armed = { autoMergeRequest: { mergeMethod: "REBASE" } };
+    const { deps: d, log } = deps([
+      { ...armed, headRefOid: "aaa" },
+      { ...armed, headRefOid: "bbb" },
+      { state: "MERGED" },
+    ]);
+    await babysit(ref, d);
+    expect(log.filter((l) => l.includes("new commits"))).toHaveLength(1);
+  });
+
   test("status line is logged only when it changes", async () => {
     const { deps: d, log } = deps([
       { autoMergeRequest: { mergeMethod: "REBASE" } },

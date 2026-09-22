@@ -17,6 +17,8 @@ export function ghPr(overrides: Partial<GhPrJson> = {}): GhPrJson {
     autoMergeRequest: null,
     baseRefName: "main",
     headRefName: "joel/fix",
+    headRefOid: "abc123",
+    latestReviews: [],
     statusCheckRollup: [{ __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }],
     ...overrides,
   };

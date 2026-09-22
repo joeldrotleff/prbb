@@ -82,6 +82,8 @@ export async function babysit(input: PrInput, deps: BabysitDeps): Promise<void> 
   let lastWarnings = "";
   let lastUpdateAt = -Infinity;
   let failures = 0;
+  let knownApprovers: Set<string> | null = null;
+  let lastHeadSha: string | null = null;
 
   while (true) {
     let pr: PrStatus;
@@ -117,6 +119,16 @@ export async function babysit(input: PrInput, deps: BabysitDeps): Promise<void> 
     if (pr.reviewDecision === "CHANGES_REQUESTED") {
       fail(`${prKey(ref)} has changes requested; address the review first. ${pr.url}`, "blocked");
     }
+
+    // Announce new approvals by name, and new commits on the branch.
+    for (const login of pr.approvedBy) {
+      if (knownApprovers && !knownApprovers.has(login)) log(`✅ ${login} approved`);
+    }
+    knownApprovers = new Set(pr.approvedBy);
+    if (lastHeadSha && pr.headSha !== lastHeadSha) {
+      log(`📦 new commits pushed to ${pr.headRefName}`);
+    }
+    lastHeadSha = pr.headSha;
 
     const line = summary(pr);
     if (line !== lastSummary) {
